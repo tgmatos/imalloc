@@ -40,3 +40,4 @@ typedef struct ibuddy_heap
 ibuddy_heap* ibuddy_heap_init(void* mem, size_t size);
 void* ibuddy_malloc(ibuddy_heap* heap, size_t size);
 void* ibuddy_malloc_first(ibuddy_heap* heap, size_t size);
+void ibuddy_free_sized(ibuddy_heap* heap, ibuddy_block* mem, size_t size);

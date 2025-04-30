@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 size_t imemalignment(void const* p)
 {
@@ -39,8 +40,6 @@ void* imonotonic_malloc(imonotonic_heap* heap, size_t size)
     return pointer;
 }
 
-// Should I count the size of the struct on the memory? IDK.
-// Must divide all memory on the init
 ibuddy_heap* ibuddy_heap_init(void* mem, size_t size)
 {
 
@@ -55,7 +54,6 @@ ibuddy_heap* ibuddy_heap_init(void* mem, size_t size)
     return heap;
 }
 
-// Note: The size passed must be already rounded
 void* ibuddy_malloc_first(ibuddy_heap* heap, size_t size)
 {
     assert((size & (size - 1)) == 0);
@@ -149,4 +147,30 @@ void* ibuddy_malloc(ibuddy_heap* heap, size_t size)
     }
 
     return NULL;
+}
+
+void ibuddy_free_sized(ibuddy_heap* heap, ibuddy_block* mem, size_t size)
+{
+    ibuddy_block* buddy;
+    ibuddy_block* block = (ibuddy_block*)((char*)mem - sizeof(ibuddy_block));
+    block->used = false;
+
+    // coalesce blocks
+    block = heap->head;
+    buddy = (ibuddy_block*)((char*)block + block->size);
+
+    while (block->size * 2 < heap->size)
+    {
+        if (block->used == false && buddy->used == false && block->size == buddy->size)
+        {
+            block->size = block->size * 2;
+            memset(block + sizeof(ibuddy_block), 0, block->size - sizeof(ibuddy_block));
+        }
+
+        block = (ibuddy_block*)((char*)block + block->size);
+        if (block->size * 2 < heap->size)
+        {
+            buddy = (ibuddy_block*)((char*)block + block->size);
+        }
+    }
 }

@@ -1,6 +1,8 @@
 #include "imalloc.h"
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -62,6 +64,10 @@ void test_allocator_multiple_allocations()
     assert(b1->used && b2->used && b3->used);
     assert(b1 != b2 && b2 != b3 && b1 != b3); // Ensure different blocks
 
+    ibuddy_free_sized(heap, p1, 32);
+    ibuddy_free_sized(heap, p2, 32);
+    ibuddy_free_sized(heap, p3, 32);
+
     free(mem);
     printf("test_allocator_multiple_allocations passed.\n");
 }
@@ -83,36 +89,6 @@ void test_allocator_out_of_memory()
     printf("test_allocator_out_of_memory passed.\n");
 }
 
-/*
-void buddy_test()
-{
-    const size_t size = 256;
-    void* mem = malloc(size);
-    ibuddy_heap* heap = ibuddy_heap_init(mem, size);
-
-void* result1 = ibuddy_malloc(heap, 32);
-if (result1 == NULL)
-{
-    printf("NULL\n");
-}
-
-void* result2 = ibuddy_malloc(heap, 32);
-ibuddy_block* r = (ibuddy_block*)((char*)result2 - sizeof(ibuddy_block));
-if (result2 == NULL)
-{
-    printf("NULL\n");
-}
-
-void* result3 = ibuddy_malloc(heap, 32);
-ibuddy_block* r3 = (ibuddy_block*)((char*)result3 - sizeof(ibuddy_block));
-if (result2 == NULL)
-{
-    printf("NULL\n");
-}
-printf("result3: {address: %p, size: %zu, used: %d}\n\n", r3, r3->size, r3->used);
-printf("Heap head: %p - Heap tail: %p\nFirst block: %p - Second block: %p \n", heap->head, heap->tail, result1, result2);
-}
-*/
 int main()
 {
     test_allocator_basic_allocation();
