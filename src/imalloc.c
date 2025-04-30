@@ -43,7 +43,10 @@ void* imonotonic_malloc(imonotonic_heap* heap, size_t size)
 // Must divide all memory on the init
 ibuddy_heap* ibuddy_heap_init(void* mem, size_t size)
 {
+
     assert((size & (size - 1)) == 0);
+    assert((size > sizeof(ibuddy_block) + sizeof(ibuddy_heap)) && "Size is less than the size of the block");
+    memset(mem, 0, size);
 
     ibuddy_heap* heap = (ibuddy_heap*)mem;
     heap->head = mem + sizeof(ibuddy_heap);
@@ -60,19 +63,13 @@ void* ibuddy_malloc_first(ibuddy_heap* heap, size_t size)
     ibuddy_block* mem = heap->head;
     mem->size = heap->size;
     size_t sz = mem->size;
+    size_t sz2 = mem->size;
     ibuddy_block* buddy = NULL;
-    /* printf("Mem size: %zu - Size: %zu\n", mem->size, size); */
 
-    // Case for when the max block is not being used
-    // So I must split it until I find the block I want and return it
-    printf("Address heap: %p - Address mem: %p\n", (void*)heap, (void*)mem);
-
-    while (size < mem->size && size <= sizeof(ibuddy_block))
+    while (size < mem->size)
     {
-        /* printf("mem->size: %zu - Address mem: %p\n", mem->size, mem); */
         mem->size = sz / 2;
         mem->used = false;
-        // Get the the buddy block
         buddy = (ibuddy_block*)((char*)mem + mem->size);
         buddy->size = sz / 2;
         buddy->used = false;
@@ -83,8 +80,8 @@ void* ibuddy_malloc_first(ibuddy_heap* heap, size_t size)
     {
         mem->used = true;
         mem->size = size;
-        heap->tail = mem + mem->size;
-        return (char*)mem + sizeof(ibuddy_block);
+        heap->tail = buddy;
+        return ((char*)mem + sizeof(ibuddy_block));
     }
 
     return NULL;
@@ -93,7 +90,12 @@ void* ibuddy_malloc_first(ibuddy_heap* heap, size_t size)
 // MIN_LEN MUST BE OF THE SIZE OF THE BUDDY_BLOCK STRUCT
 void* ibuddy_malloc(ibuddy_heap* heap, size_t size)
 {
-    assert(size > 0);
+    assert((size > 0) && "Size is less than or equal to zero");
+    assert((size > sizeof(ibuddy_block)) && "Size is less than the size of the block");
+
+    ibuddy_block* mem = heap->head;
+    ibuddy_block* buddy = (ibuddy_block*)((char*)mem + mem->size);
+    size_t sz = mem->size;
 
     uint32_t power = 1;
     while (power < size)
@@ -101,10 +103,49 @@ void* ibuddy_malloc(ibuddy_heap* heap, size_t size)
         power <<= 1;
     }
 
-    // Case where the I do the first allocation
     if (heap->head == heap->tail)
     {
         return ibuddy_malloc_first(heap, power);
+    }
+
+    if (heap->tail->used == false && power == heap->tail->size)
+    {
+        heap->tail->used = true;
+        return (char*)heap->tail + sizeof(ibuddy_block);
+    }
+
+    while (mem->size < heap->size && mem->size > 0)
+    {
+        mem = (ibuddy_block*)((char*)mem + mem->size);
+
+        if (mem->used == false && power == mem->size)
+        {
+            mem->used = true;
+            heap->tail = (ibuddy_block*)((char*)mem + mem->size);
+            return (char*)mem + sizeof(ibuddy_block);
+        }
+
+        if (mem->used == false && power < mem->size)
+        {
+            sz = mem->size;
+            while (power < mem->size)
+            {
+                mem->size = sz / 2;
+                mem->used = false;
+                buddy = (ibuddy_block*)((char*)mem + mem->size);
+                buddy->size = sz / 2;
+                buddy->used = false;
+                sz = mem->size;
+            }
+
+            if (power == mem->size)
+            {
+                mem->used = true;
+                mem->size = power;
+                heap->tail = (ibuddy_block*)((char*)mem + mem->size);
+                return (char*)mem + sizeof(ibuddy_block);
+            }
+        }
     }
 
     return NULL;

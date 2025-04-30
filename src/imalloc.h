@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct imonotonic_heap
 {
@@ -14,21 +15,6 @@ typedef struct imonotonic_heap
 size_t imemalignment(void const* p);
 imonotonic_heap* imonotonic_heap_init(void* mem, size_t size);
 void* imonotonic_malloc(imonotonic_heap* heap, size_t size);
-
-// ====== Buddy Allocator ======
-/*
-+-----------------------------------------------+
-|                   256 KB                      |
-+----------------------------+------------------+
-|          128 KB            |      128 KB      |
-+----------------------------+------------------+
-|     64 KB      |     64 KB      |
-+----------------+----------------+
-|    32    |    32  |
-+----+----+----+----+
-|16  | 16 |16  | 16 |
-+----+----+----+----+
-*/
 
 typedef struct ibuddy_block
 {
@@ -42,6 +28,7 @@ typedef struct ibuddy_heap
     ibuddy_block* head;
     ibuddy_block* tail;
     size_t size;
+    _Alignas(max_align_t) char area[0];
 } ibuddy_heap;
 
 /*

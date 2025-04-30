@@ -26,27 +26,96 @@ void monotonic_test()
     free(heap);
 }
 
+void test_allocator_basic_allocation()
+{
+    size_t heap_size = 256;
+    void* mem = malloc(heap_size);
+    ibuddy_heap* heap = ibuddy_heap_init(mem, heap_size);
+
+    void* ptr = ibuddy_malloc(heap, 32);
+    assert(ptr != NULL && "Allocation failed for 32 bytes");
+
+    ibuddy_block* block = (ibuddy_block*)((char*)ptr - sizeof(ibuddy_block));
+    assert(block->used == true);
+    assert(block->size >= 32); // Buddy allocator may allocate a power-of-two block
+
+    free(mem);
+    printf("test_allocator_basic_allocation passed.\n");
+}
+
+void test_allocator_multiple_allocations()
+{
+    size_t heap_size = 256;
+    void* mem = malloc(heap_size);
+    ibuddy_heap* heap = ibuddy_heap_init(mem, heap_size);
+
+    void* p1 = ibuddy_malloc(heap, 32);
+    void* p2 = ibuddy_malloc(heap, 32);
+    void* p3 = ibuddy_malloc(heap, 32);
+
+    assert(p1 != NULL && p2 != NULL && p3 != NULL);
+
+    ibuddy_block* b1 = (ibuddy_block*)((char*)p1 - sizeof(ibuddy_block));
+    ibuddy_block* b2 = (ibuddy_block*)((char*)p2 - sizeof(ibuddy_block));
+    ibuddy_block* b3 = (ibuddy_block*)((char*)p3 - sizeof(ibuddy_block));
+
+    assert(b1->used && b2->used && b3->used);
+    assert(b1 != b2 && b2 != b3 && b1 != b3); // Ensure different blocks
+
+    free(mem);
+    printf("test_allocator_multiple_allocations passed.\n");
+}
+
+void test_allocator_out_of_memory()
+{
+    size_t heap_size = 128;
+    void* mem = malloc(heap_size);
+    ibuddy_heap* heap = ibuddy_heap_init(mem, heap_size);
+
+    void* p1 = ibuddy_malloc(heap, 64);
+    void* p2 = ibuddy_malloc(heap, 64);
+    void* p3 = ibuddy_malloc(heap, 64); // Likely to fail due to insufficient memory
+
+    assert(p1 != NULL && p2 != NULL);
+    assert(p3 == NULL && "Should fail allocation due to out of memory");
+
+    free(mem);
+    printf("test_allocator_out_of_memory passed.\n");
+}
+
+/*
 void buddy_test()
 {
     const size_t size = 256;
     void* mem = malloc(size);
     ibuddy_heap* heap = ibuddy_heap_init(mem, size);
-    /* printf("sz: %zu\n", heap->size); */
-    void* result1 = ibuddy_malloc(heap, 14);
-    if (result1 == NULL)
-    {
-        printf("NULL\n");
-    }
 
-    void* result2 = ibuddy_malloc(heap, 16);
-    if (result2 == NULL)
-    {
-        printf("NULL\n");
-    }
-    printf("First block: %p - Second block: %p\n", result1, result2);
+void* result1 = ibuddy_malloc(heap, 32);
+if (result1 == NULL)
+{
+    printf("NULL\n");
 }
 
+void* result2 = ibuddy_malloc(heap, 32);
+ibuddy_block* r = (ibuddy_block*)((char*)result2 - sizeof(ibuddy_block));
+if (result2 == NULL)
+{
+    printf("NULL\n");
+}
+
+void* result3 = ibuddy_malloc(heap, 32);
+ibuddy_block* r3 = (ibuddy_block*)((char*)result3 - sizeof(ibuddy_block));
+if (result2 == NULL)
+{
+    printf("NULL\n");
+}
+printf("result3: {address: %p, size: %zu, used: %d}\n\n", r3, r3->size, r3->used);
+printf("Heap head: %p - Heap tail: %p\nFirst block: %p - Second block: %p \n", heap->head, heap->tail, result1, result2);
+}
+*/
 int main()
 {
-    buddy_test();
+    test_allocator_basic_allocation();
+    test_allocator_multiple_allocations();
+    test_allocator_out_of_memory();
 }
