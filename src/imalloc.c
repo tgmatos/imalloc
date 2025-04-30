@@ -174,3 +174,24 @@ void ibuddy_free_sized(ibuddy_heap* heap, ibuddy_block* mem, size_t size)
         }
     }
 }
+
+void* ibuddy_realloc(ibuddy_heap* heap, void* mem, size_t size)
+{
+    ibuddy_block* b = (ibuddy_block*)((char*)mem - sizeof(ibuddy_block));
+    uint32_t power = 1;
+    while (power < size)
+    {
+        power <<= 1;
+    }
+
+    b->used = false;
+    void* block = ibuddy_malloc(heap, power);
+    if (block == NULL)
+    {
+        b->used = true;
+        return NULL;
+    }
+
+    memcpy(block, mem, b->size);
+    return (char*)block;
+}

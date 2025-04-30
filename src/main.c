@@ -1,4 +1,5 @@
 #include "imalloc.h"
+#include <assert.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -66,7 +67,10 @@ void test_allocator_multiple_allocations()
 
     ibuddy_free_sized(heap, p1, 32);
     ibuddy_free_sized(heap, p2, 32);
-    ibuddy_free_sized(heap, p3, 32);
+    p3 = ibuddy_realloc(heap, p3, 64);
+    assert(p3 != NULL);
+    b3 = (ibuddy_block*)((char*)p3 - sizeof(ibuddy_block));
+    assert(b3->size == 64);
 
     free(mem);
     printf("test_allocator_multiple_allocations passed.\n");
