@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -40,5 +41,5 @@ typedef struct ibuddy_heap
 ibuddy_heap* ibuddy_heap_init(void* mem, size_t size);
 void* ibuddy_malloc(ibuddy_heap* heap, size_t size);
 void* ibuddy_malloc_first(ibuddy_heap* heap, size_t size);
-void ibuddy_free_sized(ibuddy_heap* heap, ibuddy_block* mem, size_t size);
+void ibuddy_free_sized(ibuddy_heap* heap, void* mem, size_t size);
 void* ibuddy_realloc(ibuddy_heap* heap, void* mem, size_t size);

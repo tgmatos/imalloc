@@ -1,11 +1,4 @@
 #include "imalloc.h"
-#include <assert.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 size_t imemalignment(void const* p)
 {
@@ -42,15 +35,22 @@ void* imonotonic_malloc(imonotonic_heap* heap, size_t size)
 
 ibuddy_heap* ibuddy_heap_init(void* mem, size_t size)
 {
+    size_t sz = size - sizeof(ibuddy_heap);
+    assert((sz & (sz - 1)) == 0);
+    assert((sz > sizeof(ibuddy_block) + sizeof(ibuddy_heap)) && "Size is less than the size of the block");
+    memset(mem, 0, sz);
 
-    assert((size & (size - 1)) == 0);
-    assert((size > sizeof(ibuddy_block) + sizeof(ibuddy_heap)) && "Size is less than the size of the block");
-    memset(mem, 0, size);
+    ibuddy_heap* heap = (ibuddy_heap*)((char*)mem);
+    ibuddy_block* block = (ibuddy_block*)((char*)mem + sizeof(ibuddy_heap));
 
-    ibuddy_heap* heap = (ibuddy_heap*)mem;
-    heap->head = mem + sizeof(ibuddy_heap);
-    heap->tail = mem + sizeof(ibuddy_heap);
-    heap->size = size;
+    block->size = sz;
+    block->used = false;
+
+    heap->head = block;
+
+    heap->tail = (ibuddy_block*)((char*)block + block->size);
+
+    heap->size = sz;
     return heap;
 }
 
@@ -58,13 +58,13 @@ void* ibuddy_malloc_first(ibuddy_heap* heap, size_t size)
 {
     assert((size & (size - 1)) == 0);
     assert(size > 0);
+
     ibuddy_block* mem = heap->head;
     mem->size = heap->size;
     size_t sz = mem->size;
-    size_t sz2 = mem->size;
-    ibuddy_block* buddy = NULL;
+    ibuddy_block* buddy;
 
-    while (size < mem->size)
+    while (mem < heap->tail && mem->size > size)
     {
         mem->size = sz / 2;
         mem->used = false;
@@ -78,8 +78,7 @@ void* ibuddy_malloc_first(ibuddy_heap* heap, size_t size)
     {
         mem->used = true;
         mem->size = size;
-        heap->tail = buddy;
-        return ((char*)mem + sizeof(ibuddy_block));
+        return (char*)mem + sizeof(ibuddy_block);
     }
 
     return NULL;
@@ -89,109 +88,112 @@ void* ibuddy_malloc_first(ibuddy_heap* heap, size_t size)
 void* ibuddy_malloc(ibuddy_heap* heap, size_t size)
 {
     assert((size > 0) && "Size is less than or equal to zero");
-    assert((size > sizeof(ibuddy_block)) && "Size is less than the size of the block");
-
     ibuddy_block* mem = heap->head;
     ibuddy_block* buddy = (ibuddy_block*)((char*)mem + mem->size);
-    size_t sz = mem->size;
 
-    uint32_t power = 1;
+    size_t sz = mem->size;
+    size = size + sizeof(ibuddy_block);
+
+    size_t power = 1;
     while (power < size)
     {
         power <<= 1;
     }
 
-    if (heap->head == heap->tail)
+    if (buddy == heap->tail)
     {
         return ibuddy_malloc_first(heap, power);
     }
 
-    if (heap->tail->used == false && power == heap->tail->size)
-    {
-        heap->tail->used = true;
-        return (char*)heap->tail + sizeof(ibuddy_block);
-    }
-
-    while (mem->size < heap->size && mem->size > 0)
+    while (mem < heap->tail)
     {
         mem = (ibuddy_block*)((char*)mem + mem->size);
-
         if (mem->used == false && power == mem->size)
         {
             mem->used = true;
-            heap->tail = (ibuddy_block*)((char*)mem + mem->size);
             return (char*)mem + sizeof(ibuddy_block);
         }
 
         if (mem->used == false && power < mem->size)
         {
             sz = mem->size;
-            while (power < mem->size)
-            {
-                mem->size = sz / 2;
-                mem->used = false;
-                buddy = (ibuddy_block*)((char*)mem + mem->size);
-                buddy->size = sz / 2;
-                buddy->used = false;
-                sz = mem->size;
-            }
+            mem->size = sz / 2;
+            mem->used = false;
+            buddy = (ibuddy_block*)((char*)mem + mem->size);
+            buddy->size = sz / 2;
+            buddy->used = false;
+            sz = mem->size;
 
             if (power == mem->size)
             {
                 mem->used = true;
                 mem->size = power;
-                heap->tail = (ibuddy_block*)((char*)mem + mem->size);
                 return (char*)mem + sizeof(ibuddy_block);
             }
         }
     }
-
     return NULL;
 }
 
-void ibuddy_free_sized(ibuddy_heap* heap, ibuddy_block* mem, size_t size)
+void ibuddy_free_sized(ibuddy_heap* heap, void* mem, size_t size)
 {
-    ibuddy_block* buddy;
+    if (mem == NULL)
+    {
+        return;
+    }
+    size_t sz;
+
     ibuddy_block* block = (ibuddy_block*)((char*)mem - sizeof(ibuddy_block));
     block->used = false;
 
-    // coalesce blocks
     block = heap->head;
-    buddy = (ibuddy_block*)((char*)block + block->size);
+    ibuddy_block* buddy = (ibuddy_block*)((char*)block + block->size);
 
-    while (block->size * 2 < heap->size)
+    while (block < heap->tail)
     {
-        if (block->used == false && buddy->used == false && block->size == buddy->size)
+        if ((block->used == false && buddy->used == false) && (block->size == buddy->size))
         {
-            block->size = block->size * 2;
-            memset(block + sizeof(ibuddy_block), 0, block->size - sizeof(ibuddy_block));
-        }
-
-        block = (ibuddy_block*)((char*)block + block->size);
-        if (block->size * 2 < heap->size)
-        {
+            sz = block->size * 2;
+            memset((char*)block, 0, sz);
+            block->size = sz;
+            block->used = false;
+            block = (ibuddy_block*)((char*)block + block->size);
             buddy = (ibuddy_block*)((char*)block + block->size);
+        }
+        else
+        {
+            block = (ibuddy_block*)((char*)buddy + buddy->size);
+            buddy = (ibuddy_block*)((char*)block + block->size);
+        }
+        if (buddy >= heap->tail)
+        {
+            return;
         }
     }
 }
 
 void* ibuddy_realloc(ibuddy_heap* heap, void* mem, size_t size)
 {
-    ibuddy_block* b = (ibuddy_block*)((char*)mem - sizeof(ibuddy_block));
-    uint32_t power = 1;
-    while (power < size)
+    if (mem == NULL)
     {
-        power <<= 1;
+        return ibuddy_malloc(heap, size);
     }
 
-    b->used = false;
-    void* block = ibuddy_malloc(heap, power);
+    ibuddy_block* b = (ibuddy_block*)((char*)mem - sizeof(ibuddy_block));
+
+    if (b->size > size)
+    {
+        return (char*)mem;
+    }
+
+    void* block = ibuddy_malloc(heap, size);
     if (block == NULL)
     {
         b->used = true;
         return NULL;
     }
+    b->used = false;
 
-    memcpy(block, mem, b->size);
+    memcpy(block, mem, b->size - sizeof(ibuddy_block));
     return (char*)block;
 }
